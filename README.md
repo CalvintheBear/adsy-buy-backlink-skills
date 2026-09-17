@@ -22,6 +22,20 @@ Codex Skill for buying or submitting Adsy backlinks through the real Adsy UI wit
 
 它不依赖 Puppeteer、Playwright、Selenium 或本地 Adsy runner，也不会创建或运行 Adsy 自动化脚本。
 
+### 模型与推理强度
+
+本机定时自动化及部署此 Skill 的自动化任务必须使用：
+
+```toml
+model = "gpt-5.6-sol"
+reasoning_effort = "high"
+```
+
+- 模型：`gpt-5.6-sol`
+- 推理强度：`high（高）`
+
+Skill 文件本身不会自动切换当前任务的模型；创建或更新 Codex 自动化时，需要在自动化配置中明确设置以上两个值。
+
 ### 依赖
 
 - Codex Desktop；
@@ -124,6 +138,20 @@ This repository uses the same mechanism as the currently active local Adsy autom
 - the new task ID, domain, price, URL, anchor, and status are verified before the task space is closed.
 
 It does not depend on Puppeteer, Playwright, Selenium, or local Adsy runners, and it does not create or execute Adsy automation scripts.
+
+### Model and reasoning effort
+
+The local scheduled automations and any automation deploying this Skill must use:
+
+```toml
+model = "gpt-5.6-sol"
+reasoning_effort = "high"
+```
+
+- Model: `gpt-5.6-sol`
+- Reasoning effort: `high`
+
+The Skill file does not switch the current task’s model by itself. Set both values explicitly when creating or updating the Codex automation.
 
 ### Requirements
 
