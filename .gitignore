@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+
+# Local browser state and task artifacts
+chrome-profiles/
+*.log
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.html
+screenshots/
+dom-dumps/
+purchase-logs/
