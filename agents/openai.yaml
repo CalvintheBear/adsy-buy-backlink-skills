@@ -1,4 +1,4 @@
 interface:
   display_name: "Adsy Backlink Buyer"
-  short_description: "Buy new Adsy backlinks via Puppeteer"
-  default_prompt: "Use $adsy-backlink-buyer to buy 1 new Adsy backlink for https://example.com with anchor Example."
+  short_description: "Buy Adsy backlinks safely through Ego Lite"
+  default_prompt: "Use $adsy-backlink-buyer to buy 1 new Adsy backlink for https://example.com with anchor Example and a USD 50-150 budget."

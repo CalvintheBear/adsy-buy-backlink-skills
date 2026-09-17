@@ -1,224 +1,175 @@
 ---
 name: adsy-backlink-buyer
-description: "Automate buying or submitting new Adsy/cp.adsy.com Article Posting / Content placement backlinks through the local Puppeteer runner/profile. Use when Codex needs to buy Adsy backlinks, buy外链, 新增购买外链, submit Adsy tasks, choose verified sites by price range, fill promoted URL and anchor text, handle Adsy login via Keychain, patch Adsy Puppeteer selector drift, or click Buy Post / Apply task / Buy / Checkout Now for authorized tasks."
+description: "Buy or submit new Adsy/cp.adsy.com Article Posting or Content placement backlinks through Ego Lite browser task spaces. Use for authorized Adsy backlink purchases, buy外链, 新增购买外链, candidate selection, task form completion, and final purchase verification. Requires ego-browser; do not use Puppeteer or local Adsy scripts."
 ---
 
 # Adsy Backlink Buyer
 
-Buy or submit new Adsy backlinks through the dedicated Puppeteer automation. Treat "buy N backlinks" as N new tasks in the current run; historical matching tasks never count as completion.
+Buy or submit new Adsy backlinks through the real Adsy UI using Ego Lite. Treat “buy N backlinks” as N new tasks in the current run; historical tasks never count as completion.
 
-## Default Inputs
+## Inputs And Authorization
 
-Parse the user request into:
+Parse the request into:
 
-- `count`: number of new backlinks to buy/submit. Default `1`.
-- `price_range`: per-site final Article Posting / Content placement price. Default `$100-$200` unless an automation overrides it.
-- `promoted_url`: required target URL.
-- `anchor_text`: required exact anchor text.
-- `project_name`: default to anchor text; if missing, derive from promoted domain.
-- `platform`: Adsy.
-- `service_type`: Article Posting / Content placement.
+- `count`: number of new tasks. Default `1`.
+- `price_range`: final per-site Article Posting / Content placement price. Default `$50-$150` unless the request or automation provides another range.
+- `promoted_url`: required exact target URL.
+- `anchor_text`: required exact anchor text, or a list of allowed anchors.
+- `project_name`: default to the anchor text or promoted domain.
+- `topic`: optional article theme and claims boundary.
+- `task_space_name`: a stable name such as `adsy <project> backlink`.
 
-Ask only when `promoted_url` or `anchor_text` is missing. A prompt containing `购买`, `Buy`, `现在 Buy`, `submit`, or equivalent is authorization to click the final Adsy UI purchase controls for matching tasks within the parsed/default limits.
+If multiple allowed anchors are provided, randomly choose one at the start, record it, and use that same value for the article, form fields, special requirements, pre-purchase review, and final report. Do not re-randomize during the run.
 
-## Required Execution Path
+Ask only when `promoted_url` or `anchor_text` is missing. A request containing `购买`, `Buy`, `submit`, or equivalent is authorization to click the final Adsy UI purchase control for matching tasks within the requested quantity and budget. If the user asks for a dry run, stop before any control that can reserve or spend funds.
 
-Use Puppeteer, not browser-control MCPs or desktop automation.
+## Required Automation Mechanism
 
-- Bundled source: `<skill_dir>/scripts/adsy-puppeteer`
-- Puppeteer workdir: `<puppeteer_workdir>` such as `$CODEX_HOME/adsy-puppeteer`
-- Chrome profile: `<chrome_profile_dir>` such as `$CODEX_HOME/chrome-profiles/adsy-puppeteer`
-- Chrome executable: `<chrome_executable>` such as the local Google Chrome binary
-- package: `puppeteer-core`
-- launch options: `headless: false`, `defaultViewport: null`, `userDataDir` set to the profile above.
+Use the available `ego-browser` / Ego Lite skill and its CLI helpers exclusively for all Adsy browser interaction.
 
-Do not use Computer Use, Browser Use, Chrome DevTools MCP, Playwright, AppleScript, coordinate clicks, raw CDP scripts, default Chrome profile reuse, exported cookies, injected cookies, or direct purchase API/fetch calls.
+- Run browser operations with `ego-browser nodejs` heredocs.
+- Create or reuse one Ego Lite task space for the project and reuse its numeric task-space ID across rounds.
+- Use `openOrReuseTab`, `snapshotText`, `pageInfo`, screenshots, semantic refs or stable locators, `click`, `fillInput`, keyboard, scroll, and wait helpers.
+- After every meaningful navigation, filter change, click, form edit, scroll, modal, or page-state change, inspect fresh state with `snapshotText`, `pageInfo`, or a screenshot before deciding the next action.
+- Prefer semantic refs or stable locators for normal controls. Rebuild refs after a fresh snapshot.
+- Do not use coordinate clicks for ordinary Adsy controls when a semantic ref or stable locator is available.
+- Do not create, modify, or run Adsy automation script files.
 
-Prefer an existing project runner. If the automation or user specifies a runner command, make sure the corresponding bundled source exists, sync changed source files to the Puppeteer workdir when needed, then run it from the Puppeteer workdir. Example:
+Do not use Puppeteer, Playwright, Selenium, Chrome DevTools MCP, Browser Use, Computer Use, AppleScript, coordinate-based desktop automation, `js` or `cdp` to fill or submit a purchase, direct form submission, purchase APIs, `browserFetch`, `serverFetch`, or fetch/XHR purchase requests. Do not read macOS Keychain, export or inject cookies, or reuse the user’s ordinary browser window.
 
-```bash
-npm run project:buy
-```
+If Ego Lite is unavailable or cannot create a usable task space, stop and report the blocker. Do not fall back to another browser mechanism.
 
-Project runner commands should map to a project-specific `.mjs` runner in `package.json`; purchase should be the default mode. Use `--dry-run` only when the user explicitly asks to stop before the final purchase click.
+## Task Space And Login
 
-If no suitable runner exists for the requested project, create or patch a project runner in the bundled source directory first, then copy it into the Puppeteer workdir and run it using the same profile, login, filtering, candidate extraction, task filling, review, and final-click rules below.
+1. Create or reuse `task_space_name` with `useOrCreateTaskSpace`.
+2. Open `https://cp.adsy.com/marketer/platform?SiteSearch%5Bverified%5D=1`.
+3. Reuse the task space’s inherited login state. Never type stored credentials automatically.
+4. Treat ordinary 2FA or Google Authenticator recommendation banners on an authenticated `cp.adsy.com/marketer/...` business page as advisory content, not a challenge.
 
-## Bundled Scripts
+If a login page, CAPTCHA, 2FA input, OTP, security challenge, credential update, or another user-only step appears:
 
-The skill carries the reusable Puppeteer runtime source under `scripts/adsy-puppeteer/`:
+- call `handOffTaskSpace(taskSpaceId)`;
+- tell the user exactly what must be completed;
+- stop the current automated run and keep the task space open;
+- never take control back until the user explicitly says to continue.
 
-- `package.json` and `package-lock.json`: npm metadata for `puppeteer-core` and available runner commands.
-- `project-runner.mjs`: configurable project purchase runner.
-- `launch-adsy-login.mjs`: manual login/profile bootstrap helper; do not use it for automation runs unless the user explicitly asks for manual login setup.
-- `screenshot-adsy-security.mjs`: diagnostic helper for suspected security/login pages.
+If the user takes control unexpectedly or the task space becomes inactive or user-owned, stop and ask before resuming. Do not retry around the ownership state.
 
-Treat the bundled scripts as the canonical source. The Puppeteer workdir is the executable runtime copy because it has local npm dependencies and accumulates screenshots/DOM diagnostics. When changing selectors, login detection, candidate extraction, task form logic, article generation, or purchase review:
+## Filters And Candidate Selection
 
-1. Patch the bundled script in `<skill_dir>/scripts/adsy-puppeteer/`.
-2. Copy the changed script and package files to `<puppeteer_workdir>/`.
-3. Run `node --check <script>.mjs` on changed scripts.
-4. Run the requested npm script from `<puppeteer_workdir>`.
-5. If runtime diagnostics produce screenshots or DOM dumps, leave those in the Puppeteer workdir; do not copy generated artifacts back into the skill.
+Set and verify through the real page UI:
 
-Do not put credentials, cookies, screenshots, DOM dumps, or purchase logs in the skill directory.
+- verified sites only;
+- the requested minimum and maximum final price;
+- exclusion of sites already worked with;
+- appropriate completion, lifetime, and replacement signals when available;
+- Article Posting / Content placement service.
 
-## Login Rules
+Select exactly `count` new sites dynamically from current results. Each candidate must:
 
-Navigate to the verified sites page:
+- be verified;
+- have a final price inside the requested range;
+- visibly support dofollow;
+- offer Article Posting / Content placement, not Writing & Placement unless explicitly requested;
+- have no Special Topic or other paid extras selected;
+- not be obvious spam or low quality;
+- not conflict with the target page, topic, or publisher requirements;
+- not duplicate another domain in the current run.
 
-```text
-https://cp.adsy.com/marketer/platform?SiteSearch%5Bverified%5D=1
-```
-
-If Adsy shows a login page, allow exactly one automatic email/password login through real Puppeteer page interactions. Read credentials only from macOS Keychain, never from files or the user:
-
-```bash
-security find-generic-password -a adsy-login -s adsy-puppeteer-email -w
-security find-generic-password -a adsy-login -s adsy-puppeteer-password -w
-```
-
-Do not print, log, screenshot, store, or include credential values in memory/final responses. Fill `LoginForm[email]` and `LoginForm[password]`, check Remember me if visible, and click the page's `Log In` submit button.
-
-Stop immediately if any of these occur:
-
-- Keychain item missing, empty, unreadable, or requiring unavailable interactive authorization.
-- Login fails, credentials are rejected, or Adsy returns to the login page after one attempt.
-- CAPTCHA, reCAPTCHA, hCaptcha, 2FA input, OTP, security challenge, credential update, or forced OAuth appears.
-- Puppeteer or the dedicated Chrome profile cannot launch.
-
-Security detection must use URL, form fields, and visible context together. Do not stop merely because an authenticated marketer page contains a banner suggesting "Two-Factor Authentication (2FA)", "Google Authenticator", or account security. If URL/title/DOM show a normal `https://cp.adsy.com/marketer/...` business page such as Search for sites, treat those as advisory banners and continue.
-
-## Filters And Candidate Collection
-
-Apply filters through Adsy UI or query parameters, then verify the current DOM/form values:
-
-- `SiteSearch[verified]=1`
-- `SiteSearch[sitePriceMin]=<min>`
-- `SiteSearch[sitePriceMax]=<max>`
-- `SiteSearch[completionRate]=7`
-- `SiteSearch[lifetime_invites_rate]=7`
-- `SiteSearch[replace_invites_rate]=7`
-- Add `SiteSearch[siteWorkedWith]=2` or the "Exclude sites I've worked with" filter when the user or automation requires excluding worked-with sites.
-
-Select exactly `count` new sites dynamically from current Adsy results. Do not hard-code domains or reuse historical purchases as completion.
-
-Candidate requirements:
-
-- Verified site.
-- Final Content placement / Article Posting price inside range.
-- Dofollow support visible; reject nofollow-only.
-- Article Posting with Content placement, not Writing & Placement unless explicitly requested.
-- No Special Topic or extra paid service selected.
-- Acceptable completion/lifetime/replacement signals when visible.
-- No obvious spam/low-quality listing.
-- No publisher requirements that conflict with the target page/topic.
-- No duplicate domains inside the current run.
-
-If a candidate opens an "Available performers for your task" page, choose the performer dynamically by the same requirements. Do not assume the first or cheapest performer is valid.
+If a site opens an “Available performers for your task” page, choose the performer using the same requirements. Do not assume the first or cheapest performer qualifies.
 
 ## Empty Candidate Diagnostics
 
-If the runner logs `Candidate pool collected` with `count: 0`, do not immediately report "no sites".
+If no candidates are recognized, do not immediately report that no sites exist.
 
-Using the same Puppeteer profile and current filter state, diagnose the Search for sites page:
+1. Capture a full-page semantic snapshot and a screenshot in the same task space.
+2. Inspect the URL, title, balance and Reserved values, visible filter values, result/card/table count, price text, domains, labels, and Buy Post / Content placement controls.
+3. Inspect at least the first five visible candidates with domain, price, tags, and service type when available.
+4. Scroll and take additional snapshots or screenshots when the semantic tree is incomplete.
 
-1. Save a screenshot named like `<project>-candidates-<timestamp>.png` in the Puppeteer workdir.
-2. Read DOM-visible URL, title, heading, balance/Reserved, filter values, result/card/table count, price text, site domains, labels, and `Buy Post` / `Content placement` button text.
-3. Extract at least the first 5 visible candidates with domain, price, tags, and button text when available.
+Only report no suitable sites when the page evidence shows no results or every visible candidate fails a stated requirement. Do not switch to a local script or selector patch as a fallback.
 
-If the screenshot or DOM shows candidate rows/cards or Buy Post buttons, treat the failure as runner selector drift. Patch the runner's candidate extractor/selectors and rerun. Only report no suitable sites when screenshot/DOM proves no results, or visible candidates are each rejected by price, dofollow, worked-with exclusion, quality, or publisher-conflict rules.
+## Task Form
 
-## Runner Failure Triage
+For each selected candidate:
 
-If a runner reports CAPTCHA/2FA/security verification, but Puppeteer review shows an authenticated marketer page with visible Adsy business content and site results, patch the runner's security-page detection and rerun. Do not misclassify ordinary 2FA recommendation banners as blockers.
+1. Open the candidate through the real UI.
+2. Read publisher requirements, minimum word count, allowed link count, prohibited subjects, and special instructions.
+3. Select the existing matching project. Create it only if it does not exist and the UI allows safe creation.
+4. Generate unique, neutral article content that meets the minimum word count and the requested topic boundary. Do not invent unverifiable product claims.
+5. Include exactly one contextual link to `promoted_url` with the selected exact `anchor_text`.
+6. Fill the Promoted URL, Anchor, article, and Special requirements through page controls.
+7. Use this meaning in Special requirements: publish the supplied article as provided, preserve the exact anchor and target URL, use dofollow if possible, and do not change the anchor unless editorial policy requires it.
+8. Read back the latest page state and verify every value. If the editor reports blank content, refill once only after verifying the current state.
 
-If Adsy page structure changes, use Puppeteer to read latest DOM/visible text/form values and patch the project runner. Allowed `page.evaluate` uses:
-
-- DOM inspection and selector discovery.
-- Candidate/performer extraction.
-- Form value and validation-state reads.
-- TinyMCE/contenteditable filling only when normal form interaction cannot reach the editor.
-
-Forbidden `page.evaluate` / script uses:
-
-- Submitting purchase endpoints.
-- Calling Adsy purchase APIs directly.
-- Bypassing the UI with fetch/XHR.
-- Clicking financial controls without the review below.
-
-After patching a runner, rerun the same purchase command unless a hard stop condition is present.
-
-## Task Form Rules
-
-For each selected site:
-
-1. Open the selected site/product/performer through real Puppeteer UI navigation or click.
-2. Assign the task to an existing matching project; create the project only when needed and safe.
-3. Read publisher requirements, minimum word count, allowed link count, prohibited categories, and special instructions.
-4. Generate unique, neutral article content meeting or exceeding the required word count.
-5. Include exactly one contextual link to `promoted_url` with exact `anchor_text`.
-6. Fill explicit promoted URL and anchor fields with exact values.
-7. Fill Special requirements with:
-
-```text
-Please publish the supplied article as provided. Keep the anchor text "<anchor_text>" linked to <promoted_url>. Use a dofollow link if possible and avoid changing the anchor unless editorial policy requires it.
-```
-
-8. Verify editor content, word count, URL field, anchor field, project, and no paid extras. If Adsy says content is blank, refill once after DOM verification.
+Some Content placement forms may not expose separate Promoted URL and Anchor fields. In that case, verify the read-back Anchor text / Url row derived from the article link, and repeat the exact URL, anchor, and dofollow request in Special requirements.
 
 ## Pre-Purchase Review
 
-Immediately before any click that can reserve or spend funds, read the latest DOM/form/editor state and confirm:
+Immediately before any click that can reserve or spend funds, inspect the newest page state and confirm:
 
-- Domain matches selected candidate.
-- Final price is inside range.
-- Project matches request.
-- Promoted URL exactly matches request.
-- Anchor text exactly matches request.
-- Article word count meets requirement.
-- Exactly one link exists, with exact URL and anchor.
-- Dofollow support remains visible.
-- Special Topic and other extra paid services are off.
-- Checkout/cart contains only current-run task(s), if checkout is used.
-- Balance is visible and sufficient, or no insufficiency/top-up prompt is shown.
+- the domain matches the selected candidate;
+- the final price is inside the requested range;
+- the project is correct;
+- the promoted URL exactly matches the request;
+- the anchor exactly matches the selected value;
+- the article meets the publisher’s word-count requirement;
+- the article contains exactly one link with the exact URL and anchor;
+- dofollow support remains visible;
+- Special Topic and every other paid extra are off;
+- the cart contains only the current-run task or tasks;
+- the visible balance is sufficient.
 
-When all checks pass and the user has authorized buying, click the real Adsy UI button using Puppeteer: `Buy Post`, `Apply task`, `Buy`, or `Checkout Now`. Do not ask for a second final-click confirmation.
+A closable “Limited time offer”, “Bank Wire Transfer”, or “Add funds now” promotional banner is not by itself proof of insufficient balance. Close the banner and re-check the current page. Stop only when the account is actually short of funds, the flow enters an Add funds/payment page, or the UI requires a top-up.
 
-Stop instead of buying if Adsy shows:
+## Final Purchase Control
 
-- Insufficient balance, add funds, bank/card/top-up prompt, or bonus purchase flow.
-- Extra cost or paid service.
-- Policy warning or manual review warning that changes the purchase risk.
-- Unavailable site/performer.
-- Price outside range.
-- Wrong URL, wrong anchor, wrong project, or more tasks than requested.
-- Nofollow-only or unclear dofollow support.
-- Publisher requirements conflict.
-- CAPTCHA, 2FA, security challenge, credential update, or login regression.
+When every pre-purchase check passes and the request authorizes buying:
 
-Never click `Add funds`, bank transfer/card payment, bonus controls, `Empty Cart`, delete controls, unrelated Buy buttons, or extra-service checkboxes unless the user explicitly requests them.
+1. Prefer the primary submit control in the upper-right or sticky header, commonly `#header_invite_submit`, with text similar to `Buy Post $83.25`.
+2. Re-inspect the latest page and confirm that the control belongs to the current `#invite-create-form`; it must not be a recommended-site, cart, Content purchase, Add funds, or unrelated Buy control.
+3. Use the unique submit control inside the current form only if the header control is absent or unusable and the same review still passes.
+4. Click the final submit control exactly once.
+5. Never retry a final financial click when completion is uncertain.
 
-## Completion And Cleanup
+Do not ask for a second confirmation after the user has already authorized the purchase within the stated quantity and budget.
 
-After clicking the final UI control, verify completion by one of:
+## Hard Stops
 
-- Task page/status shows the new task ID, selected domain, requested URL, anchor, price, and status such as `Task Review`, `Task's Acceptance`, or `In Progress`.
-- Checkout becomes empty while balance decreases and Reserved increases by the submitted task total.
-- Runner completion output reports `purchased: true` for the selected domain/price.
+Stop without relaxing requirements when any of these occurs:
 
-If post-click completion is unclear, save screenshot/DOM diagnostics and stop; do not retry in a way that could create a duplicate purchase.
+- insufficient balance or a required Add funds, card, bank-transfer, top-up, or bonus-purchase flow;
+- extra cost or an optional paid service;
+- a policy or manual-review warning that changes purchase risk;
+- price outside the requested range;
+- wrong URL, anchor, project, domain, or task count;
+- nofollow-only or unclear dofollow support;
+- conflicting publisher requirements or unavailable site/performer;
+- login, CAPTCHA, 2FA, OTP, security, or credential-update challenge;
+- the user controls the task space;
+- post-click completion remains unclear.
 
-Close only the browser instance launched by the Puppeteer runner. Do not close unrelated user Chrome windows/tabs. If a Node runner does not exit after reporting completion, check for the dedicated profile process and interrupt only the finished runner session when safe.
+Never click Add funds, payment, bonus, Empty Cart, delete controls, unrelated Buy buttons, or paid-extra checkboxes unless the user explicitly requests that separate action.
+
+## Completion Verification And Cleanup
+
+After the single final click, verify one of these outcomes through the live UI:
+
+- a task page shows the new task ID, selected domain, exact URL and anchor, final price, and a status such as `Task Review`, `Task's Acceptance`, or `In Progress`;
+- the page returns to Search for sites with `Task has been successfully sent.`, Balance decreases, and Reserved increases by the submitted total, followed by confirmation on `https://cp.adsy.com/marketer/invite` or the task-detail page;
+- the cart becomes empty and balance/Reserved changes match the submitted task total, followed by task-list confirmation.
+
+If completion is unclear, capture a screenshot and stop. Do not retry in a way that could duplicate the purchase.
+
+After confirmed completion, close the Ego Lite task space using a dedicated final `completeTaskSpace(taskSpaceId, { keep: false })` heredoc. If control was handed to the user for login or verification, keep the task space open.
 
 ## Final Report
 
-Reply in Chinese. Include:
+Reply in Chinese and include:
 
-- Newly purchased/submitted count for this run.
-- Domain, task ID if visible, and final price for each task.
-- Total cost and visible balance/reserved status when known.
-- Skipped candidates or blockers, if any.
-- Diagnostic screenshot/DOM path when reporting no suitable sites or selector/security drift.
-
-Keep the report concise. Do not count historical matching tasks as current-run purchases.
+- newly submitted count for this run;
+- selected anchor when it came from a list;
+- domain, task ID when visible, and final price for each task;
+- total cost and visible Balance/Reserved values when known;
+- skipped candidates or blockers;
+- screenshot evidence when reporting no suitable candidates or unclear completion.

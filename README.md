@@ -1,35 +1,38 @@
 # Adsy Backlink Buyer Skill
 
-Codex Skill + Puppeteer runner for buying or submitting Adsy / cp.adsy.com Article Posting and Content placement backlinks through the real Adsy UI.
+Codex Skill for buying or submitting Adsy backlinks through the real Adsy UI with Ego Lite task spaces.
 
-[中文使用说明](#中文使用说明) · [English Guide](#english-guide)
+[中文说明](#中文说明) · [English Guide](#english-guide)
 
-> **Safety:** The runner can spend money in buy mode. Always verify the target URL, anchor text, quantity, and per-site price range. Start with a dry run when testing a new setup.
+> **Important:** Buy mode can spend Adsy account funds. The Skill performs a final live-page review and clicks the purchase control only when the user has explicitly authorized buying within a stated quantity and budget.
 
-## 中文使用说明
+## 中文说明
 
-### 功能
+### 与本机自动化机制一致
 
-这个 Skill 可以让 Codex 通过本机 Chrome 和 Adsy 的真实网页界面：
+这个仓库采用与当前本机 Adsy 定时自动化相同的运行机制：
 
-- 搜索经过验证的 Adsy 网站；
-- 按价格、dofollow、完成率及其他条件筛选候选网站；
-- 填写推广 URL、锚文本、文章和发布要求；
-- 在明确授权后提交或购买新的外链任务；
-- 遇到登录、安全验证、余额不足或页面结构变化时安全停止。
+- 只使用 Ego Lite / `ego-browser` 控制真实网页；
+- 每个项目使用并持续复用独立 task space；
+- 复用 Ego Lite 已有登录状态，不读取 Keychain，不导出或注入 Cookie；
+- 每次页面状态变化后重新读取 snapshot、页面信息或截图；
+- 最终购买只通过 Adsy 页面上的真实按钮完成；
+- 登录、CAPTCHA、2FA 或安全验证时把 task space 交给用户；
+- 完成后核对任务 ID、域名、价格、URL、锚文本和状态，再关闭 task space。
 
-它不会把 Adsy 账号密码写入文件。登录凭据只从 macOS Keychain 读取。
+它不依赖 Puppeteer、Playwright、Selenium 或本地 Adsy runner，也不会创建或运行 Adsy 自动化脚本。
 
-### 系统要求
+### 依赖
 
-- macOS；
-- Google Chrome；
-- Node.js 18 或更高版本；
-- npm；
-- Codex；
-- 可用的 Adsy marketer 账号及余额。
+- Codex Desktop；
+- 已提供的 Ego Lite / `ego-browser` Skill；
+- 一个可以正常访问的 Adsy marketer 账号；
+- Ego Lite task space 中已有的 Adsy 登录状态；
+- 足够的 Adsy 余额。
 
-### 1. 安装 Skill
+不需要安装 npm 包，不需要配置 macOS Keychain，也不需要单独的 Chrome profile 目录。
+
+### 安装
 
 ```bash
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -38,136 +41,101 @@ git clone https://github.com/CalvintheBear/adsy-buy-backlink-skills.git \
   "$CODEX_HOME/skills/adsy-backlink-buyer"
 ```
 
-如果尚未设置 `CODEX_HOME`，上面的命令会自动使用 `~/.codex`。
-
-### 2. 安装运行依赖
-
-建议把可执行运行环境与 Skill 源文件分开。截图、DOM 诊断和运行日志只保存在运行目录中。
+如果已安装旧版本：
 
 ```bash
-mkdir -p "$CODEX_HOME/adsy-puppeteer"
-cp -R "$CODEX_HOME/skills/adsy-backlink-buyer/scripts/adsy-puppeteer/"* \
-  "$CODEX_HOME/adsy-puppeteer/"
-cd "$CODEX_HOME/adsy-puppeteer"
-npm install
+cd "${CODEX_HOME:-$HOME/.codex}/skills/adsy-backlink-buyer"
+git pull --ff-only
 ```
 
-### 3. 把 Adsy 凭据存入 macOS Keychain
+### 在 Codex 中购买
 
-```bash
-security add-generic-password \
-  -a adsy-login \
-  -s adsy-puppeteer-email \
-  -w "你的_ADSY_邮箱" \
-  -U
-
-security add-generic-password \
-  -a adsy-login \
-  -s adsy-puppeteer-password \
-  -w "你的_ADSY_密码" \
-  -U
-```
-
-凭据不会保存在仓库、`.env` 文件或运行日志中。如果出现 CAPTCHA、2FA、OTP 或安全挑战，自动化会停止，等待人工处理。
-
-### 4. 在 Codex 中使用
-
-安装后，可以直接向 Codex 描述购买任务。必须提供推广 URL 和准确的锚文本。例如：
+提供推广 URL、锚文本、数量和每条价格范围：
 
 ```text
-使用 $adsy-backlink-buyer，在 Adsy 购买 1 条新外链。
+使用 $adsy-backlink-buyer，在 Adsy 购买 1 条新的 Content placement 外链。
 推广 URL：https://example.com/page
 锚文本：Example Anchor
-每条价格：100–200 美元
+每条价格：50–150 美元
 ```
 
-包含“购买”“Buy”或“submit”等明确词语的请求，会被视为允许在符合指定数量和预算时点击最终购买按钮。如果只想检查候选网站，请明确要求 `dry run`。
+“购买”“Buy”“submit”等明确措辞代表用户授权在所有检查通过后点击一次最终购买按钮，不需要再次确认。
 
-### 5. 命令行 Dry Run
+### Dry Run
 
-Dry Run 会完成登录、筛选和表单检查，但在最终购买点击之前停止。
+如果只想检查候选网站和表单，不产生费用，请明确说明：
 
-```bash
-cd "$CODEX_HOME/adsy-puppeteer"
-
-ADSY_PROJECT_SLUG="example-project" \
-ADSY_PROJECT_NAME="Example Project" \
-ADSY_PROMOTED_URL="https://example.com/page" \
-ADSY_ANCHOR_TEXT="Example Anchor" \
-ADSY_MIN_PRICE=100 \
-ADSY_MAX_PRICE=200 \
-ADSY_COUNT=1 \
-npm run project:dry-run
+```text
+使用 $adsy-backlink-buyer 做 dry run。
+推广 URL：https://example.com/page
+锚文本：Example Anchor
+价格范围：50–150 美元
+不要点击最终购买按钮。
 ```
 
-### 6. 正式购买
+### 多锚文本随机选择
 
-下面的命令会在检查通过后点击 Adsy 的真实购买按钮并可能产生费用：
+定时任务可以提供多个允许的锚文本：
 
-```bash
-cd "$CODEX_HOME/adsy-puppeteer"
-
-ADSY_PROJECT_SLUG="example-project" \
-ADSY_PROJECT_NAME="Example Project" \
-ADSY_PROMOTED_URL="https://example.com/page" \
-ADSY_ANCHOR_TEXT="Example Anchor" \
-ADSY_MIN_PRICE=100 \
-ADSY_MAX_PRICE=200 \
-ADSY_COUNT=1 \
-npm run project:buy
+```text
+锚文本从 “AI Image editor” 和 “AI Photo editor” 中随机选择一个。
+本次运行从文章正文到购买前复核必须始终使用同一个值。
 ```
 
-### 常用环境变量
+Skill 会在运行开始时选择一次并记录，本次任务中不会重新随机。
 
-| 变量 | 用途 | 默认值 |
-| --- | --- | --- |
-| `ADSY_PROMOTED_URL` | 要推广的准确 URL | `https://example.com/` |
-| `ADSY_ANCHOR_TEXT` | 要使用的准确锚文本 | `Example Anchor` |
-| `ADSY_PROJECT_NAME` | Adsy 项目名称 | `Example Project` |
-| `ADSY_PROJECT_SLUG` | 日志和诊断文件的安全短名称 | `project` |
-| `ADSY_COUNT` | 本次新建任务数量 | `1` |
-| `ADSY_MIN_PRICE` | 每个网站的最低价格（美元） | `50` |
-| `ADSY_MAX_PRICE` | 每个网站的最高价格（美元） | `150` |
-| `ADSY_CANDIDATE_LIMIT` | 最多分析的候选网站数量 | `80` |
-| `ADSY_CHROME_PATH` | Chrome 可执行文件路径 | macOS Chrome 默认路径 |
-| `ADSY_CHROME_PROFILE` | 专用 Chrome profile 路径 | `$CODEX_HOME/chrome-profiles/adsy-puppeteer` |
-| `ADSY_PUPPETEER_WORKDIR` | 运行目录 | `$CODEX_HOME/adsy-puppeteer` |
-| `ADSY_PLATFORM_URL` | 自定义 Adsy 搜索页 URL | 自动生成的 verified-sites URL |
+### 自动化流程
 
-Keychain 的 account 和 service 名也可以通过 `ADSY_KEYCHAIN_ACCOUNT`、`ADSY_KEYCHAIN_EMAIL_SERVICE`、`ADSY_KEYCHAIN_PASSWORD_SERVICE` 覆盖。
+1. 创建或复用项目专用的 Ego Lite task space。
+2. 打开 Adsy verified-sites 页面并复用已有登录状态。
+3. 设置 verified、价格范围、排除已合作网站等筛选条件。
+4. 核对 dofollow、服务类型、价格、质量和发布要求。
+5. 生成符合发布方字数要求的文章，只放一个准确的 URL/锚文本链接。
+6. 填写项目、文章、URL、锚文本和 Special requirements。
+7. 购买前重新核对域名、价格、项目、链接、字数、付费附加项、购物车和余额。
+8. 只点击一次当前任务表单的真实主购买按钮。
+9. 到任务页或 Invite 列表核对新任务后关闭 task space。
 
-### 安全规则
+### 关键规则
 
-- 先用 Dry Run 验证新配置。
-- 不要提交 `.env`、Chrome profiles、cookies、截图、DOM dumps、购买日志或 `node_modules`。
-- 自动化不会充值、添加银行卡、购买额外服务或绕过 CAPTCHA/2FA。
-- 如果余额不足、价格超出范围、URL/锚文本不匹配或 dofollow 条件不清楚，自动化应停止而不是购买。
-- 正式购买后，请在 Adsy 任务页核对域名、任务 ID、价格和状态。
+- 历史任务不计入本次完成；每次必须新提交指定数量。
+- 只购买 verified、价格合规、支持 dofollow 的 Article Posting / Content placement。
+- 不选择 Writing & Placement、Special Topic 或其他额外付费服务，除非用户明确要求。
+- 如果没有识别到候选，必须先检查整页 snapshot、截图和至少前五个可见候选，不能直接报告“没有站点”。
+- “Limited time offer / Bank Wire Transfer / Add funds now” 可关闭促销横幅不等于余额不足；关闭后需要重新核对。
+- 余额不足、必须充值、价格超限、字段错误、nofollow-only、要求冲突或状态不明时立即停止。
+- 最终购买按钮只点击一次；结果不明确时不得重试，以免重复购买。
+- 登录、CAPTCHA、2FA、OTP 或安全挑战出现时，必须把 task space 交给用户并停止自动执行。
+
+完整运行规则见 [`SKILL.md`](./SKILL.md)。
 
 ## English Guide
 
-### What it does
+### Matches the local automation mechanism
 
-This Skill lets Codex use a local Chrome browser and the real Adsy UI to:
+This repository uses the same mechanism as the currently active local Adsy automations:
 
-- search verified Adsy sites;
-- filter candidates by price, dofollow support, completion signals, and other requirements;
-- fill the promoted URL, exact anchor text, article, and publisher instructions;
-- submit or buy new backlink tasks after explicit authorization;
-- stop safely on login challenges, insufficient balance, or unexpected page changes.
+- Ego Lite / `ego-browser` is the only browser-control mechanism;
+- each project creates and continuously reuses a dedicated task space;
+- the task space reuses existing login state without reading Keychain or exporting/injecting cookies;
+- every meaningful page-state change is followed by a fresh snapshot, page-info check, or screenshot;
+- purchases are made only through real Adsy UI controls;
+- login, CAPTCHA, 2FA, or security challenges are handed off to the user;
+- the new task ID, domain, price, URL, anchor, and status are verified before the task space is closed.
 
-Adsy credentials are never stored in project files. They are read only from macOS Keychain.
+It does not depend on Puppeteer, Playwright, Selenium, or local Adsy runners, and it does not create or execute Adsy automation scripts.
 
 ### Requirements
 
-- macOS;
-- Google Chrome;
-- Node.js 18 or newer;
-- npm;
-- Codex;
-- an active Adsy marketer account with sufficient balance.
+- Codex Desktop;
+- the bundled Ego Lite / `ego-browser` Skill;
+- an accessible Adsy marketer account;
+- an existing Adsy login session in the Ego Lite task space;
+- sufficient Adsy balance.
 
-### 1. Install the Skill
+No npm packages, macOS Keychain setup, or dedicated local Chrome-profile directory are required.
+
+### Install
 
 ```bash
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -176,117 +144,76 @@ git clone https://github.com/CalvintheBear/adsy-buy-backlink-skills.git \
   "$CODEX_HOME/skills/adsy-backlink-buyer"
 ```
 
-If `CODEX_HOME` is not already set, the command above automatically uses `~/.codex`.
-
-### 2. Install runtime dependencies
-
-Keep the executable runtime separate from the Skill source. Screenshots, DOM diagnostics, and runtime logs should remain in the runtime directory.
+To update an older installation:
 
 ```bash
-mkdir -p "$CODEX_HOME/adsy-puppeteer"
-cp -R "$CODEX_HOME/skills/adsy-backlink-buyer/scripts/adsy-puppeteer/"* \
-  "$CODEX_HOME/adsy-puppeteer/"
-cd "$CODEX_HOME/adsy-puppeteer"
-npm install
+cd "${CODEX_HOME:-$HOME/.codex}/skills/adsy-backlink-buyer"
+git pull --ff-only
 ```
 
-### 3. Store Adsy credentials in macOS Keychain
+### Buy from Codex
 
-```bash
-security add-generic-password \
-  -a adsy-login \
-  -s adsy-puppeteer-email \
-  -w "YOUR_ADSY_EMAIL" \
-  -U
-
-security add-generic-password \
-  -a adsy-login \
-  -s adsy-puppeteer-password \
-  -w "YOUR_ADSY_PASSWORD" \
-  -U
-```
-
-Credentials are not written to the repository, `.env` files, or runtime logs. The automation stops for manual handling if CAPTCHA, 2FA, OTP, or another security challenge appears.
-
-### 4. Use it from Codex
-
-After installation, describe the purchase to Codex and include the promoted URL and exact anchor text. For example:
+Provide the promoted URL, exact anchor, quantity, and per-site price range:
 
 ```text
-Use $adsy-backlink-buyer to buy 1 new Adsy backlink.
+Use $adsy-backlink-buyer to buy 1 new Adsy Content placement backlink.
 Promoted URL: https://example.com/page
 Anchor text: Example Anchor
-Price per site: USD 100–200
+Price per site: USD 50–150
 ```
 
-A request containing an explicit action such as “buy” or “submit” authorizes the final Adsy purchase click only within the requested quantity and budget. Ask for a `dry run` if you want candidate and form checks without purchasing.
+An explicit action such as “buy” or “submit” authorizes one final purchase click after every required check passes. A second confirmation is not required.
 
-### 5. Command-line dry run
+### Dry run
 
-Dry-run mode performs login, filtering, and form checks, then stops before the final purchase click.
+To inspect candidates and forms without spending funds, say so explicitly:
 
-```bash
-cd "$CODEX_HOME/adsy-puppeteer"
-
-ADSY_PROJECT_SLUG="example-project" \
-ADSY_PROJECT_NAME="Example Project" \
-ADSY_PROMOTED_URL="https://example.com/page" \
-ADSY_ANCHOR_TEXT="Example Anchor" \
-ADSY_MIN_PRICE=100 \
-ADSY_MAX_PRICE=200 \
-ADSY_COUNT=1 \
-npm run project:dry-run
+```text
+Use $adsy-backlink-buyer for a dry run.
+Promoted URL: https://example.com/page
+Anchor text: Example Anchor
+Price range: USD 50–150
+Do not click the final purchase control.
 ```
 
-### 6. Buy backlinks
+### Random choice from allowed anchors
 
-The following command can click the real Adsy purchase control and spend account funds after all checks pass:
+A scheduled task can provide several allowed anchors:
 
-```bash
-cd "$CODEX_HOME/adsy-puppeteer"
-
-ADSY_PROJECT_SLUG="example-project" \
-ADSY_PROJECT_NAME="Example Project" \
-ADSY_PROMOTED_URL="https://example.com/page" \
-ADSY_ANCHOR_TEXT="Example Anchor" \
-ADSY_MIN_PRICE=100 \
-ADSY_MAX_PRICE=200 \
-ADSY_COUNT=1 \
-npm run project:buy
+```text
+Randomly choose one anchor from “AI Image editor” and “AI Photo editor”.
+Use the same chosen value from article generation through pre-purchase review.
 ```
 
-### Environment variables
+The Skill chooses once at the start and never re-randomizes during that run.
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `ADSY_PROMOTED_URL` | Exact URL to promote | `https://example.com/` |
-| `ADSY_ANCHOR_TEXT` | Exact anchor text | `Example Anchor` |
-| `ADSY_PROJECT_NAME` | Adsy project name | `Example Project` |
-| `ADSY_PROJECT_SLUG` | Safe short name for logs and diagnostics | `project` |
-| `ADSY_COUNT` | Number of new tasks in the current run | `1` |
-| `ADSY_MIN_PRICE` | Minimum price per site in USD | `50` |
-| `ADSY_MAX_PRICE` | Maximum price per site in USD | `150` |
-| `ADSY_CANDIDATE_LIMIT` | Maximum candidate sites to inspect | `80` |
-| `ADSY_CHROME_PATH` | Chrome executable path | default macOS Chrome path |
-| `ADSY_CHROME_PROFILE` | Dedicated Chrome profile path | `$CODEX_HOME/chrome-profiles/adsy-puppeteer` |
-| `ADSY_PUPPETEER_WORKDIR` | Executable runtime directory | `$CODEX_HOME/adsy-puppeteer` |
-| `ADSY_PLATFORM_URL` | Custom Adsy search-page URL | generated verified-sites URL |
+### Automation flow
 
-The Keychain account and service names can also be overridden with `ADSY_KEYCHAIN_ACCOUNT`, `ADSY_KEYCHAIN_EMAIL_SERVICE`, and `ADSY_KEYCHAIN_PASSWORD_SERVICE`.
+1. Create or reuse the project’s dedicated Ego Lite task space.
+2. Open Adsy’s verified-sites page and reuse the existing login session.
+3. Set and verify the verified, price-range, and exclude-worked-with filters.
+4. Review dofollow support, service type, final price, site quality, and publisher requirements.
+5. Generate an article that meets the minimum word count and contains exactly one correct URL/anchor link.
+6. Fill the project, article, URL, anchor, and Special requirements.
+7. Re-check the domain, price, project, link, word count, paid extras, cart, and balance.
+8. Click the current task form’s real primary purchase control exactly once.
+9. Verify the new task in the task page or Invite list, then close the task space.
 
-### Safety rules
+### Key rules
 
-- Use a dry run first when validating a new setup.
-- Never commit `.env` files, Chrome profiles, cookies, screenshots, DOM dumps, purchase logs, or `node_modules`.
-- The automation does not add funds, add payment cards, buy optional extras, or bypass CAPTCHA/2FA.
-- It should stop instead of buying when balance is insufficient, price is outside the range, URL/anchor values do not match, or dofollow support is unclear.
-- After buying, verify the domain, task ID, final price, and status on the Adsy task page.
+- Historical tasks never count; each run must submit the requested number of new tasks.
+- Buy only verified, in-range, dofollow Article Posting / Content placement offers.
+- Do not select Writing & Placement, Special Topic, or other paid extras unless explicitly requested.
+- If no candidates are recognized, inspect a full-page snapshot, screenshot, and at least the first five visible candidates before reporting no sites.
+- A closable “Limited time offer / Bank Wire Transfer / Add funds now” banner is not proof of insufficient balance; close it and re-check.
+- Stop on insufficient balance, required top-up, out-of-range price, wrong values, nofollow-only support, conflicting requirements, or unclear completion.
+- Click the final purchase control once only. Never retry when the result is uncertain.
+- Hand off the task space and stop automation when login, CAPTCHA, 2FA, OTP, or another security challenge appears.
+
+See [`SKILL.md`](./SKILL.md) for the complete operating rules.
 
 ## Repository files
 
-- `SKILL.md`: Codex Skill instructions and safety rules.
-- `agents/openai.yaml`: Skill display metadata.
-- `scripts/adsy-puppeteer/project-runner.mjs`: configurable Adsy purchase runner.
-- `scripts/adsy-puppeteer/launch-adsy-login.mjs`: manual profile-login helper.
-- `scripts/adsy-puppeteer/screenshot-adsy-security.mjs`: login and security diagnostic helper.
-- `scripts/adsy-puppeteer/package.json` and `package-lock.json`: runtime dependencies.
+- `SKILL.md`: complete Ego Lite Adsy workflow, purchase rules, and hard stops.
+- `agents/openai.yaml`: Codex Skill display metadata.
+- `README.md`: bilingual installation and usage guide.
